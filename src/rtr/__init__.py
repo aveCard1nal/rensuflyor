@@ -1,2 +1,1 @@
-VERSION = "0.1.0"
-TARGET_LANG = "ru"
+VERSION = "0.2.0"

@@ -6,11 +6,19 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "src", "rtr")
 OUT = os.path.join(ROOT, "dist", "zz_autotranslate_ru.rpy")
 
+USER_SETTINGS = [
+    "translate_names",
+]
+
 MODULES = [
     "rtr",
+    "rtr.settings",
     "rtr.tags",
     "rtr.segment",
     "rtr.codec",
+    "rtr.protect",
+    "rtr.google",
+    "rtr.translator",
     "rtr.hooks",
 ]
 
@@ -52,8 +60,17 @@ def read_source(name):
         return f.read()
 
 
+def settings_block():
+    defaults = {}
+    exec(compile(read_source("rtr.settings"), "settings", "exec"), defaults)
+    lines = ["init -998 python hide:\n", "    import rtr.settings as s\n"]
+    for name in USER_SETTINGS:
+        lines.append("    s.%s = %r\n" % (name, defaults[name]))
+    return "".join(lines) + "\n"
+
+
 def build():
-    lines = [LOADER]
+    lines = [settings_block(), LOADER]
     for name in MODULES:
         lines.append("    _load(%r, %r)\n" % (name, read_source(name)))
     lines.append(INSTALL)
