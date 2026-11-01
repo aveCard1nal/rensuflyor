@@ -8,6 +8,9 @@ OUT = os.path.join(ROOT, "dist", "zz_autotranslate_ru.rpy")
 
 MODULES = [
     "rtr",
+    "rtr.tags",
+    "rtr.segment",
+    "rtr.codec",
     "rtr.hooks",
 ]
 
