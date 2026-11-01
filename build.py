@@ -19,6 +19,9 @@ MODULES = [
     "rtr.protect",
     "rtr.google",
     "rtr.translator",
+    "rtr.cache",
+    "rtr.worker",
+    "rtr.lookahead",
     "rtr.hooks",
 ]
 

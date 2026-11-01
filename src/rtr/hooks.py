@@ -1,16 +1,25 @@
 from __future__ import unicode_literals
 
+import io
+import os
+import sys
+import time
+
 import renpy
 
 from rtr import VERSION, settings
-from rtr.google import GoogleClient, TranslateError
+from rtr.cache import Cache
+from rtr.google import GoogleClient
+from rtr.lookahead import collect
 from rtr.translator import Translator
+from rtr.worker import Worker
 
 _STRING_TYPES = ("".__class__, b"".__class__)
 
 _previous_filter = None
-_translator = None
-_cache = {}
+_worker = None
+_cache = None
+_last_node = None
 
 
 def log(message):
@@ -48,32 +57,83 @@ def collect_terms():
     return terms
 
 
+def _writable(path):
+    try:
+        with io.open(path, "ab"):
+            pass
+        return True
+    except (IOError, OSError):
+        return False
+
+
+def cache_path():
+    for base in (renpy.config.gamedir, renpy.config.savedir):
+        if base:
+            path = os.path.join(base, settings.cache_file)
+            if _writable(path):
+                return path
+    return None
+
+
+def _apply_previous(text):
+    if _previous_filter is None:
+        return text
+    try:
+        return _previous_filter(text)
+    except Exception:
+        return text
+
+
+def _needs_translation(text):
+    return bool(text) and any(c.isalpha() for c in text)
+
+
+def prefetch():
+    global _last_node
+    try:
+        name = renpy.game.context().current
+        if name == _last_node:
+            return
+        _last_node = name
+        node = renpy.game.script.lookup(name)
+    except Exception:
+        return
+    texts = collect(node, renpy.game.script.lookup, settings.lookahead)
+    _worker.request([_apply_previous(t) for t in texts])
+
+
 def translate_line(text):
-    if not text:
+    if not _needs_translation(text):
         return text
     cached = _cache.get(text)
     if cached is not None:
+        prefetch()
         return cached
-    try:
-        result = _translator.translate([text])[0]
-    except TranslateError as e:
-        log("translate failed: %s" % e)
+    prefetch()
+    start = time.time()
+    result = _worker.wait(text, settings.wait_timeout)
+    if result is None:
+        log("not ready after %.1fs, showing original" % (time.time() - start))
         return text
-    _cache[text] = result
     return result
 
 
 def _filter(text):
-    if _previous_filter is not None:
-        text = _previous_filter(text)
-    return translate_line(text)
+    return translate_line(_apply_previous(text))
 
 
 def install():
-    global _previous_filter, _translator
+    global _previous_filter, _worker, _cache
+    old = getattr(sys, "_rtr_worker", None)
+    if old is not None:
+        old.stop()
     percent = bool(getattr(renpy.config, "old_substitutions", False))
     terms = collect_terms()
-    _translator = Translator(GoogleClient(), terms, percent)
+    _cache = Cache(cache_path())
+    loaded = _cache.load()
+    _worker = Worker(Translator(GoogleClient(), terms, percent), _cache, log)
+    _worker.start()
+    sys._rtr_worker = _worker
     _previous_filter = renpy.config.say_menu_text_filter
     renpy.config.say_menu_text_filter = _filter
-    log("%s installed, %d protected terms, percent=%s" % (VERSION, len(terms), percent))
+    log("%s installed, %d protected terms, percent=%s, cache %s (%d entries)" % (VERSION, len(terms), percent, _cache.path, loaded))

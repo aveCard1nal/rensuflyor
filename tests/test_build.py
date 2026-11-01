@@ -26,11 +26,22 @@ class Namespace(object):
     pass
 
 
+class FakeTranslator(object):
+
+    def __init__(self, fn):
+        self.fn = fn
+
+    def translate(self, texts):
+        return [self.fn(t) for t in texts]
+
+
 def make_fake_renpy():
     renpy = types.ModuleType("renpy")
     renpy.config = Namespace()
     renpy.config.say_menu_text_filter = None
     renpy.config.old_substitutions = True
+    renpy.config.gamedir = None
+    renpy.config.savedir = None
     renpy.display = types.ModuleType("renpy.display")
     renpy.display.log = FakeLog()
     renpy.character = Namespace()
@@ -68,6 +79,10 @@ class BuildTest(unittest.TestCase):
         sys.modules["renpy"] = self.renpy
 
     def tearDown(self):
+        worker = getattr(sys, "_rtr_worker", None)
+        if worker is not None:
+            worker.stop()
+            del sys._rtr_worker
         sys.modules.clear()
         sys.modules.update(self.saved)
 
@@ -82,15 +97,27 @@ class BuildTest(unittest.TestCase):
 
     def test_installs_filter(self):
         hooks = self.run_built()
-        hooks._translator.translate = lambda texts: ["T:" + t for t in texts]
+        hooks._worker.translator = FakeTranslator(lambda t: "T:" + t)
         self.assertEqual(self.renpy.config.say_menu_text_filter("Hello"), "T:Hello")
+        self.assertEqual(self.renpy.config.say_menu_text_filter("..."), "...")
         self.assertTrue(any("installed" in line for line in self.renpy.display.log.lines))
 
     def test_chains_previous_filter(self):
         self.renpy.config.say_menu_text_filter = lambda s: s + "!"
         hooks = self.run_built()
-        hooks._translator.translate = lambda texts: texts
+        hooks._worker.translator = FakeTranslator(lambda t: t)
         self.assertEqual(self.renpy.config.say_menu_text_filter("Hi"), "Hi!")
+
+    def test_reinstall_stops_old_worker(self):
+        self.run_built()
+        first = sys._rtr_worker
+        for name in list(sys.modules):
+            if name == "rtr" or name.startswith("rtr."):
+                del sys.modules[name]
+        self.run_built()
+        first.thread.join(5)
+        self.assertFalse(first.thread.is_alive())
+        self.assertIsNot(sys._rtr_worker, first)
 
     def test_names_protected_by_default(self):
         hooks = self.run_built()
