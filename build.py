@@ -26,6 +26,7 @@ MODULES = [
     "rtr.google",
     "rtr.yandex",
     "rtr.translator",
+    "rtr.combine",
     "rtr.cache",
     "rtr.worker",
     "rtr.lookahead",

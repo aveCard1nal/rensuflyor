@@ -10,6 +10,7 @@ import renpy
 
 from rtr import VERSION, settings
 from rtr.cache import Cache
+from rtr.combine import combine
 from rtr.fontcheck import has_cyrillic
 from rtr.google import GoogleClient
 from rtr.lookahead import collect
@@ -51,6 +52,10 @@ def _get(name, default):
 
 def _set(name, value):
     setattr(_persistent(), "_rtr_" + name, value)
+    try:
+        renpy.exports.save_persistent()
+    except Exception as e:
+        log("cannot save persistent: %s" % (e,))
 
 
 def provider():
@@ -62,8 +67,12 @@ def translate_names():
     return bool(_get("translate_names", settings.translate_names))
 
 
-def show_original():
-    return bool(_get("show_original", False))
+def translation_enabled():
+    return not _get("disabled", False)
+
+
+def show_both():
+    return bool(_get("show_both", False))
 
 
 def font_single():
@@ -164,20 +173,29 @@ def prefetch():
     _worker.request([_apply_previous(t) for t in texts])
 
 
+def _in_menu():
+    try:
+        node = renpy.game.script.lookup(renpy.game.context().current)
+    except Exception:
+        return False
+    return type(node).__name__ == "Menu"
+
+
 def translate_line(text):
     if not _needs_translation(text):
         return text
     prefetch()
-    if show_original():
+    if not translation_enabled():
         return text
-    cached = _cache.get(text)
-    if cached is not None:
-        return cached
-    start = time.time()
-    result = _worker.wait(text, settings.wait_timeout)
+    result = _cache.get(text)
     if result is None:
-        log("not ready after %.1fs, showing original" % (time.time() - start))
-        return text
+        start = time.time()
+        result = _worker.wait(text, settings.wait_timeout)
+        if result is None:
+            log("not ready after %.1fs, showing original" % (time.time() - start))
+            return text
+    if show_both():
+        return combine(result, text, _percent, inline=_in_menu())
     return result
 
 
@@ -213,8 +231,12 @@ def toggle_names():
     reload_terms()
 
 
-def toggle_original():
-    _set("show_original", not show_original())
+def toggle_enabled():
+    _set("disabled", translation_enabled())
+
+
+def toggle_both():
+    _set("show_both", not show_both())
 
 
 def toggle_font_single():
@@ -254,7 +276,8 @@ def status():
         "provider": provider(),
         "providers": [(key, PROVIDERS[key][0]) for key in ("google", "yandex")],
         "translate_names": translate_names(),
-        "show_original": show_original(),
+        "enabled": translation_enabled(),
+        "show_both": show_both(),
         "font_fallback": settings.font_fallback,
         "font_single": font_single(),
         "cached": len(_cache),

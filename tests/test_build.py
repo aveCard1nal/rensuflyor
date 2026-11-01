@@ -103,6 +103,7 @@ def make_fake_renpy(gamedir):
     renpy.store.n = FakeCharacter("[player]")
     renpy.store.ToggleScreen = lambda name: ("toggle", name)
     renpy.game = Namespace(persistent=FakePersistent(), preferences=Namespace(font_transform=None))
+    renpy.exports = Namespace(save_persistent=lambda: None)
     renpy.text = Namespace(font=Namespace(FontGroup=FakeFontGroup))
     renpy.loader = Namespace(load=fake_load)
     return renpy
@@ -195,13 +196,23 @@ class BuildTest(unittest.TestCase):
         hooks._worker.translator = FakeTranslator(lambda t: t)
         self.assertEqual(self.renpy.config.say_menu_text_filter("Hi"), "Hi!")
 
-    def test_show_original(self):
+    def test_disable_translation(self):
         hooks = self.run_built()
         hooks._worker.translator = FakeTranslator(lambda t: "T:" + t)
-        hooks.toggle_original()
+        hooks.toggle_enabled()
+        self.assertFalse(hooks.status()["enabled"])
         self.assertEqual(self.renpy.config.say_menu_text_filter("Hello"), "Hello")
-        hooks.toggle_original()
+        hooks.toggle_enabled()
         self.assertEqual(self.renpy.config.say_menu_text_filter("Hello"), "T:Hello")
+
+    def test_show_both(self):
+        hooks = self.run_built()
+        hooks._worker.translator = FakeTranslator(lambda t: "T:" + t)
+        hooks.toggle_both()
+        out = self.renpy.config.say_menu_text_filter("Hello{nw}")
+        self.assertTrue(out.startswith("T:Hello\n{size=-6}"))
+        self.assertTrue(out.endswith("Hello{/alpha}{/size}{nw}"))
+        self.assertEqual(hooks._cache.get("Hello{nw}"), "T:Hello{nw}")
 
     def test_reinstall_stops_old_worker(self):
         self.run_built()
