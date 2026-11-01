@@ -10,6 +10,7 @@ import renpy
 
 from rtr import VERSION, settings
 from rtr.cache import Cache
+from rtr.fontcheck import has_cyrillic
 from rtr.google import GoogleClient
 from rtr.lookahead import collect
 from rtr.translator import Translator
@@ -23,6 +24,11 @@ PROVIDERS = {
     "yandex": ("Яндекс", YandexClient),
 }
 
+FONT_TRANSFORM = "rtr_cyrillic"
+CYRILLIC_RANGES = ((0x0400, 0x052F), (0x2116, 0x2116))
+
+_font_checks = {}
+_font_groups = {}
 _previous_filter = None
 _worker = None
 _cache = None
@@ -246,12 +252,53 @@ def status():
     }
 
 
+def font_has_cyrillic(name):
+    if name not in _font_checks:
+        try:
+            f = renpy.loader.load(name)
+            try:
+                data = f.read()
+            finally:
+                f.close()
+            _font_checks[name] = has_cyrillic(data)
+        except Exception:
+            _font_checks[name] = False
+        log("font %s has cyrillic: %s" % (name, _font_checks[name]))
+    return _font_checks[name]
+
+
+def cyrillic_font(font):
+    key = font if isinstance(font, _STRING_TYPES) else id(font)
+    rv = _font_groups.get(key)
+    if rv is not None:
+        return rv
+    if isinstance(font, _STRING_TYPES) and font_has_cyrillic(font):
+        rv = font
+    else:
+        rv = renpy.text.font.FontGroup()
+        for start, end in CYRILLIC_RANGES:
+            rv.add(settings.fallback_font, start, end)
+        rv.add(font, None, None)
+    _font_groups[key] = rv
+    return rv
+
+
+def install_font_fallback():
+    if not settings.font_fallback:
+        return
+    renpy.config.font_transforms[FONT_TRANSFORM] = cyrillic_font
+    prefs = renpy.game.preferences
+    if getattr(prefs, "font_transform", None) in (None, FONT_TRANSFORM):
+        prefs.font_transform = FONT_TRANSFORM
+
+
 def install():
     global _previous_filter, _percent
     _percent = bool(getattr(renpy.config, "old_substitutions", False))
     start()
     _previous_filter = renpy.config.say_menu_text_filter
     renpy.config.say_menu_text_filter = _filter
+    install_font_fallback()
     renpy.config.keymap["rtr_settings"] = [settings.settings_key]
     renpy.config.underlay.append(renpy.display.behavior.Keymap(rtr_settings=renpy.store.ToggleScreen("rtr_settings")))
     log("%s installed, percent=%s" % (VERSION, _percent))

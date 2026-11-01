@@ -52,6 +52,37 @@ class FakeTranslator(object):
         self.terms = terms
 
 
+class FakeFontGroup(object):
+
+    def __init__(self):
+        self.added = []
+
+    def add(self, font, start, end):
+        self.added.append((font, start, end))
+        return self
+
+
+class FakeFile(object):
+
+    def __init__(self, data):
+        self.data = data
+
+    def read(self):
+        return self.data
+
+    def close(self):
+        pass
+
+
+def fake_load(name):
+    if name == "cyr.ttf":
+        from tests.test_fontcheck import font, format4
+        return FakeFile(font(format4([(0x0400, 0x04FF, 10)])))
+    if name == "latin.ttf":
+        return FakeFile(b"latin")
+    raise IOError(name)
+
+
 def make_fake_renpy(gamedir):
     renpy = types.ModuleType("renpy")
     renpy.config = Namespace(
@@ -61,6 +92,7 @@ def make_fake_renpy(gamedir):
         savedir=None,
         keymap={},
         underlay=[],
+        font_transforms={},
     )
     renpy.display = types.ModuleType("renpy.display")
     renpy.display.log = FakeLog()
@@ -70,7 +102,9 @@ def make_fake_renpy(gamedir):
     renpy.store.e = FakeCharacter("Eileen")
     renpy.store.n = FakeCharacter("[player]")
     renpy.store.ToggleScreen = lambda name: ("toggle", name)
-    renpy.game = Namespace(persistent=FakePersistent())
+    renpy.game = Namespace(persistent=FakePersistent(), preferences=Namespace(font_transform=None))
+    renpy.text = Namespace(font=Namespace(FontGroup=FakeFontGroup))
+    renpy.loader = Namespace(load=fake_load)
     return renpy
 
 
@@ -127,6 +161,22 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(self.renpy.config.say_menu_text_filter("..."), "...")
         self.assertEqual(self.renpy.config.keymap["rtr_settings"], ["K_F8"])
         self.assertEqual(self.renpy.config.underlay, [("keymap", {"rtr_settings": ("toggle", "rtr_settings")})])
+
+    def test_font_fallback(self):
+        hooks = self.run_built()
+        self.assertEqual(self.renpy.game.preferences.font_transform, "rtr_cyrillic")
+        transform = self.renpy.config.font_transforms["rtr_cyrillic"]
+        self.assertEqual(transform("cyr.ttf"), "cyr.ttf")
+        group = transform("latin.ttf")
+        self.assertEqual(group.added[0], ("DejaVuSans.ttf", 0x0400, 0x052F))
+        self.assertEqual(group.added[-1], ("latin.ttf", None, None))
+        self.assertIs(transform("latin.ttf"), group)
+        self.assertIsInstance(transform("missing.ttf"), FakeFontGroup)
+
+    def test_font_fallback_keeps_user_choice(self):
+        self.renpy.game.preferences.font_transform = "opendyslexic"
+        self.run_built()
+        self.assertEqual(self.renpy.game.preferences.font_transform, "opendyslexic")
 
     def test_chains_previous_filter(self):
         self.renpy.config.say_menu_text_filter = lambda s: s + "!"

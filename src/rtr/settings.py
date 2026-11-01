@@ -3,6 +3,8 @@ from __future__ import unicode_literals
 provider = "google"
 translate_names = False
 settings_key = "K_F8"
+font_fallback = True
+fallback_font = "DejaVuSans.ttf"
 source_lang = "auto"
 target_lang = "ru"
 glossary_file = "rtr_glossary.txt"

@@ -11,6 +11,7 @@ USER_SETTINGS = [
     "provider",
     "translate_names",
     "settings_key",
+    "font_fallback",
 ]
 
 MODULES = [
@@ -20,6 +21,7 @@ MODULES = [
     "rtr.segment",
     "rtr.codec",
     "rtr.protect",
+    "rtr.fontcheck",
     "rtr.client",
     "rtr.google",
     "rtr.yandex",
