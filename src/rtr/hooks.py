@@ -66,6 +66,10 @@ def show_original():
     return bool(_get("show_original", False))
 
 
+def font_single():
+    return bool(_get("font_single", False))
+
+
 def ucid():
     value = _get("ucid", None)
     if not value:
@@ -213,6 +217,11 @@ def toggle_original():
     _set("show_original", not show_original())
 
 
+def toggle_font_single():
+    _set("font_single", not font_single())
+    _font_groups.clear()
+
+
 def reload_terms():
     _worker.translator.set_terms(collect_terms())
 
@@ -246,6 +255,8 @@ def status():
         "providers": [(key, PROVIDERS[key][0]) for key in ("google", "yandex")],
         "translate_names": translate_names(),
         "show_original": show_original(),
+        "font_fallback": settings.font_fallback,
+        "font_single": font_single(),
         "cached": len(_cache),
         "error": _worker.last_error,
         "glossary": glossary_path(),
@@ -274,6 +285,8 @@ def cyrillic_font(font):
         return rv
     if isinstance(font, _STRING_TYPES) and font_has_cyrillic(font):
         rv = font
+    elif font_single():
+        rv = settings.fallback_font
     else:
         rv = renpy.text.font.FontGroup()
         for start, end in CYRILLIC_RANGES:

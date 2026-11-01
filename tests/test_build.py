@@ -173,6 +173,17 @@ class BuildTest(unittest.TestCase):
         self.assertIs(transform("latin.ttf"), group)
         self.assertIsInstance(transform("missing.ttf"), FakeFontGroup)
 
+    def test_font_single_mode(self):
+        hooks = self.run_built()
+        transform = self.renpy.config.font_transforms["rtr_cyrillic"]
+        self.assertIsInstance(transform("latin.ttf"), FakeFontGroup)
+        hooks.toggle_font_single()
+        self.assertTrue(hooks.status()["font_single"])
+        self.assertEqual(transform("latin.ttf"), "DejaVuSans.ttf")
+        self.assertEqual(transform("cyr.ttf"), "cyr.ttf")
+        hooks.toggle_font_single()
+        self.assertIsInstance(transform("latin.ttf"), FakeFontGroup)
+
     def test_font_fallback_keeps_user_choice(self):
         self.renpy.game.preferences.font_transform = "opendyslexic"
         self.run_built()

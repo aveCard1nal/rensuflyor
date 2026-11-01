@@ -60,6 +60,8 @@ screen rtr_settings():
 
             textbutton ("Переводить имена: " + ("да" if s["translate_names"] else "нет")) action Function(_rtr.toggle_names)
             textbutton ("Показывать оригинал: " + ("да" if s["show_original"] else "нет")) action Function(_rtr.toggle_original)
+            if s["font_fallback"]:
+                textbutton ("Шрифт: " + ("только DejaVuSans" if s["font_single"] else "игры + DejaVuSans")) action [Function(_rtr.toggle_font_single), _DisplayReset()]
             textbutton "Открыть список игнорирования" action Function(_rtr.open_glossary)
             text "Слово или фраза на строку. Изменения применятся после закрытия этого окна." style "rtr_hint_text"
             textbutton "Сбросить кэш переводов" action Function(_rtr.clear_cache)
