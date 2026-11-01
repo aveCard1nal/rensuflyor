@@ -41,6 +41,12 @@ class ParseTest(unittest.TestCase):
     def test_single_string(self):
         self.assertEqual(parse_response(ok("а")[1], 1), ["а"])
 
+    def test_null_item_becomes_empty(self):
+        self.assertEqual(parse_response(ok([["a", "en"], None])[1], 2), ["a", ""])
+
+    def test_bad_item(self):
+        self.assertRaises(TranslateError, parse_response, ok([1])[1], 1)
+
     def test_count_mismatch(self):
         self.assertRaises(TranslateError, parse_response, ok(["а"])[1], 2)
 
@@ -93,6 +99,14 @@ class ClientTest(unittest.TestCase):
     def test_gives_up(self):
         c = self.client([(429, b"")] * settings.retries)
         self.assertRaises(TranslateError, c.translate, ["x"])
+
+    def test_retries_any_transport_error(self):
+        c = self.client([ValueError("BadStatusLine"), ok(["ok"])])
+        self.assertEqual(c.translate(["x"]), ["ok"])
+
+    def test_retries_truncated_body(self):
+        c = self.client([(200, b"[[\"a"), ok(["ok"])])
+        self.assertEqual(c.translate(["x"]), ["ok"])
 
     def test_no_retry_on_client_error(self):
         c = self.client([(400, b"")])

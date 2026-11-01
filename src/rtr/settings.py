@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+from __future__ import absolute_import, unicode_literals
 
 provider = "google"
 translate_names = False
@@ -17,3 +17,5 @@ wait_timeout = 3.0
 lookahead = 40
 fail_cooldown = 30.0
 error_pause = 5.0
+max_error_pause = 60.0
+coalesce = 0.3

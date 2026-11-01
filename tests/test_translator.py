@@ -93,13 +93,53 @@ class TranslatorTest(unittest.TestCase):
 
     def test_escapes_output(self):
         client = FakeClient(text=lambda s: "{скобки} [и] 5%")
-        self.assertEqual(Translator(client, percent=True).translate(["Brackets."]), ["{{скобки} [[и] 5%%"])
+        self.assertEqual(Translator(client, percent=True).translate(["Brackets."]), ["{{Скобки} [[и] 5%%"])
+
+
+class FlakyClient(FakeClient):
+
+    def translate(self, texts, fmt="text"):
+        self.calls.append((fmt, list(texts)))
+        if fmt != "text":
+            raise IOError("429")
+        return ["\u0441\u043b\u043e\u043c\u0430\u043d\u043e" if "<" in t else t.upper() for t in texts]
+
+
+class RobustnessTest(unittest.TestCase):
+
+    def test_keeps_good_lines_when_fallback_fails(self):
+        t = Translator(FlakyClient())
+        self.assertEqual(t.translate(["Good line.", "Hey [name]."]), ["GOOD LINE.", None])
+
+    def test_first_request_failure_raises(self):
+        class Down(FakeClient):
+            def translate(self, texts, fmt="text"):
+                raise IOError("down")
+        self.assertRaises(IOError, Translator(Down()).translate, ["Hi."])
+
+    def test_empty_result_falls_back(self):
+        client = FakeClient(text=lambda s: "", html=lambda s: "\u041f\u0440\u0438\u0432\u0435\u0442.")
+        self.assertEqual(Translator(client).translate(["Hello."]), ["\u041f\u0440\u0438\u0432\u0435\u0442."])
+
+    def test_match_case(self):
+        client = FakeClient(text=lambda s: "\u0438\u0433\u043d\u043e\u0440\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u044d\u0442\u043e")
+        self.assertEqual(Translator(client).translate(["Ignore it"]), ["\u0418\u0433\u043d\u043e\u0440\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u044d\u0442\u043e"])
+        client = FakeClient(text=lambda s: "\u0430 \u0442\u0430\u043a")
+        self.assertEqual(Translator(client).translate(["and so"]), ["\u0430 \u0442\u0430\u043a"])
+
+    def test_match_case_skips_markup(self):
+        client = FakeClient(text=lambda s: "<span id=\"1\">\u0434\u0430</span>")
+        self.assertEqual(Translator(client).translate(["{b}Yes{/b}"]), ["{b}\u0414\u0430{/b}"])
 
 
 class TidyTest(unittest.TestCase):
 
     def test_tidy(self):
-        self.assertEqual(tidy_html("тебя,<x id=\"2\"></x> ."), "тебя, <x id=\"2\"></x>.")
+        self.assertEqual(tidy_html("тебя,<x id=\"2\"></x> ."), "тебя,<x id=\"2\"></x>.")
+        src = "You, <x id=\"1\"></x> win. Aw...<x id=\"2\"></x>."
+        self.assertEqual(tidy_html("Ты,<x id=\"1\"></x>победил. Ой... <x id=\"2\"></x>.", src),
+                         "Ты, <x id=\"1\"></x> победил. Ой...<x id=\"2\"></x>.")
+        self.assertEqual(tidy_html("Как<x id=\"1\"></x> атакует", "As <x id=\"1\"></x> attacks"), "Как <x id=\"1\"></x> атакует")
         self.assertEqual(tidy_html("сделал</span> ?"), "сделал</span>?")
         self.assertEqual(tidy_html("бак ( <span id=\"1\">$</span> )"), "бак (<span id=\"1\">$</span>)")
 

@@ -1,15 +1,15 @@
-from __future__ import unicode_literals
+from __future__ import absolute_import, unicode_literals
 
 import os
 import time
 
 try:
-    from urllib.error import HTTPError, URLError
+    from urllib.error import HTTPError
     from urllib.parse import urlencode
     from urllib.request import Request, urlopen
 except ImportError:
     from urllib import urlencode
-    from urllib2 import HTTPError, Request, URLError, urlopen
+    from urllib2 import HTTPError, Request, urlopen
 
 from rtr import settings
 
@@ -19,6 +19,13 @@ RETRY_STATUSES = (429, 500, 502, 503, 504)
 
 class TranslateError(Exception):
     pass
+
+
+def describe(error):
+    try:
+        return "%s" % (error,)
+    except Exception:
+        return repr(error)
 
 
 _context = []
@@ -97,11 +104,15 @@ class Client(object):
                 delay *= 2
             try:
                 status, data = self.transport(url, body, settings.timeout)
-            except (URLError, IOError, OSError) as e:
-                error = "network: %s" % (e,)
+            except Exception as e:
+                error = "network: %s" % describe(e)
                 continue
             if status == 200:
-                return self.parse(data, len(texts))
+                try:
+                    return self.parse(data, len(texts))
+                except ValueError as e:
+                    error = "bad response: %s" % describe(e)
+                    continue
             error = "http %d" % status
             if status not in RETRY_STATUSES:
                 break

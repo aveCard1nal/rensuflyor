@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+from __future__ import absolute_import, unicode_literals
 
 import json
 
@@ -16,6 +16,10 @@ def parse_response(data, count):
     for item in res:
         while isinstance(item, list):
             item = item[0] if item else ""
+        if item is None:
+            item = ""
+        if not isinstance(item, ("".__class__, b"".__class__)):
+            raise TranslateError("unexpected item %r" % (item,))
         out.append(item)
     if len(out) != count:
         raise TranslateError("expected %d results, got %d" % (count, len(out)))

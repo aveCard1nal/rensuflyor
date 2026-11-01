@@ -30,7 +30,7 @@ class CombineTest(unittest.TestCase):
 
     def test_pauses_removed_from_original(self):
         self.assertEqual(combine("Раз.{w} Два.{p}Три.", "One.{w} Two.{p}Three."),
-                         "Раз.{w} Два.{p}Три.\n" + orig("One. Two.Three."))
+                         "Раз.{w} Два.{p}Три.\n" + orig("One. Two. Three."))
 
     def test_percent_and_escapes(self):
         self.assertEqual(combine("На 99%% {{точно}.", "99%% {{sure}.", True),

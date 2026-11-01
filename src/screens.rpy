@@ -66,8 +66,8 @@ screen rtr_settings():
             if s["font_fallback"]:
                 textbutton ("Шрифт: " + ("только DejaVuSans" if s["font_single"] else "от игры + DejaVuSans")) action [Function(_rtr.toggle_font_single), _DisplayReset()]
             textbutton "Открыть список игнорирования" action Function(_rtr.open_glossary)
-            text "Слово или фраза на строку. Изменения применятся после закрытия этого окна." style "rtr_hint_text"
-            textbutton "Сбросить кэш переводов" action Function(_rtr.clear_cache)
+            text "Слово или фраза на строку. После закрытия окна затронутые строки будут переведены заново." style "rtr_hint_text"
+            textbutton "Сбросить кэш переводов" action Confirm("Удалить все сохранённые переводы и перевести заново?", Function(_rtr.clear_cache))
             text ("Переведено строк в кэше: %d" % s["cached"]) style "rtr_hint_text"
             if s["error"]:
                 text ("Ошибка переводчика: " + s["error"]) style "rtr_error_text" substitute False

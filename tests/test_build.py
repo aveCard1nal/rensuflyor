@@ -105,7 +105,7 @@ def make_fake_renpy(gamedir):
     renpy.store.n = FakeCharacter("[player]")
     renpy.store.mc = FakeCharacter("name", dynamic=True)
     renpy.store.ToggleScreen = lambda name: ("toggle", name)
-    renpy.game = Namespace(persistent=FakePersistent(), preferences=Namespace(font_transform=None))
+    renpy.game = Namespace(persistent=FakePersistent(), preferences=Namespace(font_transform=None, language=None))
     renpy.exports = Namespace(save_persistent=lambda: None)
     renpy.text = Namespace(font=Namespace(FontGroup=FakeFontGroup))
     renpy.loader = Namespace(load=fake_load)
@@ -202,6 +202,29 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(calls, [])
         hooks._cache.put_many([("Hello", "Привет")])
         self.assertEqual(self.renpy.config.say_menu_text_filter("Hello"), "Привет")
+
+    def test_official_russian_is_not_retranslated(self):
+        hooks = self.run_built()
+        hooks._worker.translator = FakeTranslator(lambda t: "T:" + t)
+        self.renpy.game.preferences.language = "russian"
+        self.assertEqual(self.renpy.config.say_menu_text_filter("Hello"), "Hello")
+        self.renpy.game.preferences.language = None
+        self.assertEqual(self.renpy.config.say_menu_text_filter("Hello"), "T:Hello")
+
+    def test_glossary_change_invalidates_cache(self):
+        hooks = self.run_built()
+        hooks._cache.put_many([("Hi WIZ.", "old"), ("Bye.", "\u041f\u043e\u043a\u0430.")])
+        with io.open(os.path.join(self.dir, "rtr_glossary.txt"), "wb") as f:
+            f.write(b"WIZ\n")
+        hooks.reload_terms()
+        self.assertIsNone(hooks._cache.get("Hi WIZ."))
+        self.assertEqual(hooks._cache.get("Bye."), "\u041f\u043e\u043a\u0430.")
+
+    def test_read_only_folder_reports_error(self):
+        hooks = self.run_built()
+        self.renpy.config.gamedir = os.path.join(self.dir, "missing", "deeper")
+        hooks.open_glossary()
+        self.assertIn("missing", hooks.status()["error"])
 
     def test_error_is_escaped(self):
         hooks = self.run_built()

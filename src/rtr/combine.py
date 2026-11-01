@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+from __future__ import absolute_import, unicode_literals
 
 from rtr.tags import TAG, tokenize
 
@@ -11,7 +11,13 @@ def _is_control(token):
 
 
 def strip_control(text, percent=False):
-    return "".join(t.raw for t in tokenize(text, percent) if not _is_control(t))
+    out = []
+    for t in tokenize(text, percent):
+        if not _is_control(t):
+            out.append(t.raw)
+        elif t.key == "p" and out and not out[-1].endswith(" "):
+            out.append(" ")
+    return "".join(out)
 
 
 def combine(translated, original, percent=False, inline=False):

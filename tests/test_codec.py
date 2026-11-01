@@ -69,6 +69,13 @@ class EncodeTest(unittest.TestCase):
         enc = encode(split("{i}Sighs{w} on").segments[0])
         self.assertEqual(enc.html, "<x id=\"1\"></x>Sighs")
 
+    def test_self_closing_inside_pair(self):
+        enc = only("{b}Hello {image=heart.png} there{/b}")
+        self.assertEqual(enc.html, "<span id=\"1\">Hello <x id=\"2\"></x> there</span>")
+
+    def test_non_bmp_entity(self):
+        self.assertEqual(html_unescape("&#128512;"), u"\U0001F600")
+
     def test_crossed_tags(self):
         enc = only("{b}a{i}b{/b}c{/i}")
         self.assertEqual(sorted(enc.atoms.values()), ["{/b}", "{b}"])

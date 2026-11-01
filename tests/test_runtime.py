@@ -42,6 +42,26 @@ class CacheTest(unittest.TestCase):
         self.assertEqual(d.get("x"), "2")
         self.assertEqual(len(d), 1)
 
+    def test_forget_persists(self):
+        c = Cache(self.path)
+        c.put_many([("x", "1"), ("y", "2")])
+        c.forget(["x", "missing"])
+        d = Cache(self.path)
+        self.assertEqual(d.load(), 1)
+        self.assertIsNone(d.get("x"))
+        self.assertEqual(d.get("y"), "2")
+
+    def test_truncated_tail_is_not_glued(self):
+        with io.open(self.path, "wb") as f:
+            f.write(b"[\"a\", \"1\"]\n[\"b\", \"\u0420")
+        c = Cache(self.path)
+        self.assertEqual(c.load(), 1)
+        c.put_many([("c", "\u0442\u0440\u0438")])
+        d = Cache(self.path)
+        d.load()
+        self.assertEqual(d.get("c"), "\u0442\u0440\u0438")
+        self.assertEqual(d.get("a"), "1")
+
     def test_memory_only(self):
         c = Cache(None)
         self.assertEqual(c.load(), 0)
@@ -78,7 +98,7 @@ class WorkerTest(unittest.TestCase):
         self.translator = FakeTranslator(fail)
         self.cache = Cache(None)
         self.sleeps = []
-        return Worker(self.translator, self.cache, clock=self.clock, sleep=self.sleeps.append)
+        return Worker(self.translator, self.cache, clock=self.clock, sleep=self.sleeps.append, coalesce=0)
 
     def test_urgent_goes_first(self):
         w = self.make()
@@ -92,6 +112,30 @@ class WorkerTest(unittest.TestCase):
             settings.batch_size = old
         self.assertEqual(self.translator.calls[0], ["c", "z"])
         self.assertEqual(self.cache.get("z"), "RU:z")
+
+    def test_urgent_batch_is_alone(self):
+        w = self.make()
+        w.request(["a", "b"])
+        w.request(["z"], urgent=True)
+        w.step()
+        self.assertEqual(self.translator.calls[0], ["z"])
+
+    def test_backoff_grows(self):
+        w = self.make(fail=True)
+        for t in ("a", "b", "c", "d", "e", "f"):
+            w.request([t])
+            w.step()
+        self.assertEqual(self.sleeps, [5.0, 10.0, 20.0, 40.0, 60.0, 60.0])
+
+    def test_partial_results(self):
+        w = self.make()
+        w.translator.translate = lambda texts: [None if t == "b" else "RU:" + t for t in texts]
+        w.request(["a", "b"])
+        w.step()
+        self.assertEqual(self.cache.get("a"), "RU:a")
+        self.assertIsNone(self.cache.get("b"))
+        self.assertIn("b", w.failed)
+        self.assertTrue(w.healthy)
 
     def test_skips_cached_and_duplicates(self):
         w = self.make()

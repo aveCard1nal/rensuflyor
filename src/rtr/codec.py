@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+from __future__ import absolute_import, unicode_literals
 
 import re
 import sys
@@ -6,7 +6,11 @@ import sys
 from rtr.tags import TAG, TEXT, escape_text
 
 if sys.version_info[0] == 2:
-    _chr = unichr
+    def _chr(code):
+        if code > 0xFFFF:
+            code -= 0x10000
+            return unichr(0xD800 + (code >> 10)) + unichr(0xDC00 + (code & 0x3FF))
+        return unichr(code)
 else:
     _chr = chr
 
@@ -53,14 +57,30 @@ class Encoded(object):
         self.atoms = atoms
 
 
+def _closed_later(tokens):
+    rv = [False] * len(tokens)
+    seen = set()
+    for i in range(len(tokens) - 1, -1, -1):
+        t = tokens[i]
+        if t.kind != TAG:
+            continue
+        if t.closing:
+            seen.add(t.key)
+        else:
+            rv[i] = t.key in seen
+    return rv
+
+
 def _pair(tokens):
     pairs = {}
     stack = []
+    closable = _closed_later(tokens)
     for i, t in enumerate(tokens):
         if t.kind != TAG:
             continue
         if not t.closing:
-            stack.append(i)
+            if closable[i]:
+                stack.append(i)
         elif stack and tokens[stack[-1]].key == t.key:
             pairs[stack.pop()] = i
     return pairs

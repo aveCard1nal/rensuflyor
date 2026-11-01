@@ -1,14 +1,16 @@
-from __future__ import unicode_literals
+from __future__ import absolute_import, unicode_literals
 
 import threading
 import time
 
 from rtr import settings
+from rtr.client import describe
 
 
 class Worker(object):
 
-    def __init__(self, translator, cache, log=None, clock=time.time, sleep=time.sleep):
+    def __init__(self, translator, cache, log=None, clock=time.time, sleep=time.sleep, coalesce=None):
+        self.coalesce = settings.coalesce if coalesce is None else coalesce
         self.translator = translator
         self.cache = cache
         self.log = log or (lambda message: None)
@@ -24,6 +26,7 @@ class Worker(object):
         self.thread = None
         self.last_error = None
         self.healthy = True
+        self.fail_streak = 0
 
     def _recently_failed(self, text):
         when = self.failed.get(text)
@@ -68,7 +71,8 @@ class Worker(object):
 
     def _take(self):
         batch = []
-        for source in (self.urgent, self.queue):
+        sources = (self.urgent,) if self.urgent else (self.queue,)
+        for source in sources:
             while source and len(batch) < settings.batch_size:
                 t = source.pop(0)
                 self.queued.discard(t)
@@ -80,29 +84,36 @@ class Worker(object):
         with self.cond:
             while not self.stopped and not self.urgent and not self.queue:
                 self.cond.wait()
+            if not self.stopped and not self.urgent and len(self.queue) < settings.batch_size and self.coalesce:
+                self.cond.wait(self.coalesce)
             if self.stopped:
                 return False
             batch = self._take()
         ok = True
+        missing = []
         try:
             results = self.translator.translate(batch)
-            self.cache.put_many(zip(batch, results))
+            self.cache.put_many([(t, r) for t, r in zip(batch, results) if r is not None])
+            missing = [t for t, r in zip(batch, results) if r is None]
         except Exception as e:
             ok = False
-            self.last_error = "%s" % (e,)
-            self.log("batch of %d failed: %s" % (len(batch), e))
+            missing = batch
+            self.last_error = describe(e)
+            self.log("batch of %d failed: %s" % (len(batch), self.last_error))
         with self.cond:
             self.in_flight.difference_update(batch)
             self.healthy = ok
+            now = self.clock()
             if ok:
                 self.last_error = None
+                self.fail_streak = 0
             else:
-                now = self.clock()
-                for t in batch:
-                    self.failed[t] = now
+                self.fail_streak += 1
+            for t in missing:
+                self.failed[t] = now
             self.cond.notify_all()
         if not ok:
-            self.sleep(settings.error_pause)
+            self.sleep(min(settings.error_pause * 2 ** (self.fail_streak - 1), settings.max_error_pause))
         return True
 
     def reset_failures(self):

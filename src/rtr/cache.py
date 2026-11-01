@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+from __future__ import absolute_import, unicode_literals
 
 import io
 import json
@@ -12,6 +12,7 @@ class Cache(object):
         self.path = path
         self.entries = {}
         self.lock = threading.Lock()
+        self.needs_newline = False
 
     def load(self):
         if not self.path or not os.path.exists(self.path):
@@ -24,9 +25,13 @@ class Cache(object):
                 src, dst = json.loads(raw.decode("utf-8"))
             except (ValueError, TypeError, UnicodeDecodeError):
                 continue
-            self.entries[src] = dst
+            if dst is None:
+                self.entries.pop(src, None)
+            else:
+                self.entries[src] = dst
             count += 1
-        return count
+        self.needs_newline = bool(data) and not data.endswith(b"\n")
+        return len(self.entries)
 
     def get(self, text):
         return self.entries.get(text)
@@ -43,6 +48,27 @@ class Cache(object):
             if self.path and os.path.exists(self.path):
                 os.remove(self.path)
 
+    def forget(self, texts):
+        texts = [t for t in texts if t in self.entries]
+        if not texts:
+            return
+        with self.lock:
+            for t in texts:
+                self.entries.pop(t, None)
+            self._append([(t, None) for t in texts])
+
+    def _append(self, pairs):
+        if not self.path:
+            return
+        data = "".join(json.dumps([s, d], ensure_ascii=False) + "\n" for s, d in pairs)
+        if not isinstance(data, bytes):
+            data = data.encode("utf-8")
+        if self.needs_newline:
+            data = b"\n" + data
+            self.needs_newline = False
+        with io.open(self.path, "ab") as f:
+            f.write(data)
+
     def put_many(self, pairs):
         pairs = [(s, d) for s, d in pairs if self.entries.get(s) != d]
         if not pairs:
@@ -50,7 +76,4 @@ class Cache(object):
         with self.lock:
             for s, d in pairs:
                 self.entries[s] = d
-            if self.path:
-                lines = [json.dumps([s, d]) + "\n" for s, d in pairs]
-                with io.open(self.path, "ab") as f:
-                    f.write("".join(lines).encode("ascii"))
+            self._append(pairs)

@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+from __future__ import absolute_import, unicode_literals
 
 import io
 import os
@@ -10,10 +10,12 @@ import renpy
 
 from rtr import VERSION, settings
 from rtr.cache import Cache
+from rtr.client import describe
 from rtr.combine import combine
 from rtr.fontcheck import has_cyrillic
 from rtr.google import GoogleClient
-from rtr.lookahead import collect
+from rtr.lookahead import collect, kind_of, texts_of
+from rtr.protect import compile_terms
 from rtr.translator import Translator
 from rtr.worker import Worker
 from rtr.yandex import YandexClient, new_ucid
@@ -157,6 +159,17 @@ def _apply_previous(text):
         return text
 
 
+def official_russian():
+    try:
+        lang = renpy.game.preferences.language
+    except Exception:
+        return False
+    if not lang:
+        return False
+    lang = lang.lower()
+    return lang in ("ru", "rus") or "russ" in lang or "русск" in lang
+
+
 def _needs_translation(text):
     return bool(text) and any(c.isalpha() for c in text)
 
@@ -171,7 +184,15 @@ def prefetch():
         node = renpy.game.script.lookup(name)
     except Exception:
         return
-    texts = collect(node, renpy.game.script.lookup, settings.lookahead)
+    lookup = renpy.game.script.lookup
+    texts = collect(node, lookup, settings.lookahead)
+    try:
+        stack = renpy.game.context().return_stack
+        if stack:
+            site = lookup(stack[-1])
+            texts += texts_of(site) + collect(site, lookup, settings.lookahead // 2)
+    except Exception:
+        pass
     _worker.request([_apply_previous(t) for t in texts])
 
 
@@ -182,16 +203,15 @@ def _predicting():
         return False
 
 
-def _in_menu():
+def _current_node():
     try:
-        node = renpy.game.script.lookup(renpy.game.context().current)
+        return renpy.game.script.lookup(renpy.game.context().current)
     except Exception:
-        return False
-    return type(node).__name__ == "Menu"
+        return None
 
 
 def translate_line(text):
-    if not _needs_translation(text) or not translation_enabled():
+    if not _needs_translation(text) or not translation_enabled() or official_russian():
         return text
     if _predicting():
         result = _cache.get(text)
@@ -200,6 +220,10 @@ def translate_line(text):
             return text
         return result
     prefetch()
+    node = _current_node()
+    kind = kind_of(node) if node is not None else None
+    if kind == "Menu":
+        _worker.request([_apply_previous(t) for t in texts_of(node)], urgent=True)
     result = _cache.get(text)
     if result is None:
         start = time.time()
@@ -207,8 +231,8 @@ def translate_line(text):
         if result is None:
             log("not ready after %.1fs, showing original" % (time.time() - start))
             return text
-    if show_both():
-        return combine(result, text, _percent, inline=_in_menu())
+    if show_both() and not (kind == "Say" and getattr(node, "who", None) == "extend"):
+        return combine(result, text, _percent, inline=kind == "Menu")
     return result
 
 
@@ -258,15 +282,31 @@ def toggle_font_single():
 
 
 def reload_terms():
-    _worker.translator.set_terms(collect_terms())
+    old = set(getattr(_worker.translator, "terms", None) or ())
+    new = collect_terms()
+    _worker.translator.set_terms(new)
+    changed = compile_terms(old ^ new)
+    if changed is None:
+        return
+    stale = [src for src in list(_cache.entries) if changed.search(src)]
+    try:
+        _cache.forget(stale)
+    except (IOError, OSError) as e:
+        _report("не удалось обновить кэш: %s" % describe(e))
+    log("terms changed, %d cached lines will be translated again" % len(stale))
+
+
+def _report(message):
+    log(message)
+    _worker.last_error = message
 
 
 def open_glossary():
     path = glossary_path()
-    if not os.path.exists(path):
-        with io.open(path, "wb"):
-            pass
     try:
+        if not os.path.exists(path):
+            with io.open(path, "wb"):
+                pass
         if hasattr(os, "startfile"):
             os.startfile(path)
         elif sys.platform == "darwin":
@@ -274,12 +314,15 @@ def open_glossary():
         else:
             subprocess.Popen(["xdg-open", path])
     except Exception as e:
-        log("cannot open %s: %s" % (path, e))
+        _report("не удалось открыть %s: %s" % (path, describe(e)))
 
 
 def clear_cache():
     global _last_node
-    _cache.clear()
+    try:
+        _cache.clear()
+    except (IOError, OSError) as e:
+        _report("не удалось удалить кэш: %s" % describe(e))
     _worker.reset_failures()
     _last_node = None
 
@@ -343,11 +386,22 @@ def install_font_fallback():
 
 def install():
     global _previous_filter, _percent
-    _percent = bool(getattr(renpy.config, "old_substitutions", False))
-    start()
-    _previous_filter = renpy.config.say_menu_text_filter
-    renpy.config.say_menu_text_filter = _filter
-    install_font_fallback()
+    try:
+        _percent = bool(getattr(renpy.config, "old_substitutions", False))
+        start()
+        _previous_filter = renpy.config.say_menu_text_filter
+        renpy.config.say_menu_text_filter = _filter
+    except Exception as e:
+        log("install failed, translation disabled: %s" % describe(e))
+        return
+    for step in (install_font_fallback, install_key):
+        try:
+            step()
+        except Exception as e:
+            log("%s failed: %s" % (step.__name__, describe(e)))
+    log("%s installed, percent=%s" % (VERSION, _percent))
+
+
+def install_key():
     renpy.config.keymap["rtr_settings"] = [settings.settings_key]
     renpy.config.underlay.append(renpy.display.behavior.Keymap(rtr_settings=renpy.store.ToggleScreen("rtr_settings")))
-    log("%s installed, percent=%s" % (VERSION, _percent))
