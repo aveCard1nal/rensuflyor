@@ -23,6 +23,7 @@ class Worker(object):
         self.stopped = False
         self.thread = None
         self.last_error = None
+        self.healthy = True
 
     def _recently_failed(self, text):
         when = self.failed.get(text)
@@ -50,6 +51,8 @@ class Worker(object):
         if result is not None:
             return result
         self.request([text], urgent=True)
+        if not self.healthy:
+            return None
         deadline = self.clock() + timeout
         with self.cond:
             while True:
@@ -90,6 +93,7 @@ class Worker(object):
             self.log("batch of %d failed: %s" % (len(batch), e))
         with self.cond:
             self.in_flight.difference_update(batch)
+            self.healthy = ok
             if ok:
                 self.last_error = None
             else:

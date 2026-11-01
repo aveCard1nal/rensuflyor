@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+import os
 import time
 
 try:
@@ -20,13 +21,35 @@ class TranslateError(Exception):
     pass
 
 
+_context = []
+
+
+def ssl_context():
+    if not _context:
+        ctx = None
+        try:
+            import certifi
+            import ssl
+            path = certifi.where()
+            if os.path.exists(path):
+                ctx = ssl.create_default_context(cafile=path)
+        except Exception:
+            ctx = None
+        _context.append(ctx)
+    return _context[0]
+
+
 def http_transport(url, body, timeout):
     req = Request(url, data=body, headers={
         "User-Agent": USER_AGENT,
         "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
     })
     try:
-        res = urlopen(req, timeout=timeout)
+        ctx = ssl_context()
+        if ctx is not None:
+            res = urlopen(req, timeout=timeout, context=ctx)
+        else:
+            res = urlopen(req, timeout=timeout)
         try:
             return res.getcode(), res.read()
         finally:

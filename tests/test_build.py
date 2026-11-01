@@ -21,8 +21,9 @@ class FakeLog(object):
 
 class FakeCharacter(object):
 
-    def __init__(self, name):
+    def __init__(self, name, dynamic=False):
         self.name = name
+        self.dynamic = dynamic
 
 
 class Namespace(object):
@@ -97,10 +98,12 @@ def make_fake_renpy(gamedir):
     renpy.display = types.ModuleType("renpy.display")
     renpy.display.log = FakeLog()
     renpy.display.behavior = Namespace(Keymap=lambda **kw: ("keymap", kw))
+    renpy.display.predict = Namespace(predicting=False)
     renpy.character = Namespace(ADVCharacter=FakeCharacter)
     renpy.store = types.ModuleType("store")
     renpy.store.e = FakeCharacter("Eileen")
     renpy.store.n = FakeCharacter("[player]")
+    renpy.store.mc = FakeCharacter("name", dynamic=True)
     renpy.store.ToggleScreen = lambda name: ("toggle", name)
     renpy.game = Namespace(persistent=FakePersistent(), preferences=Namespace(font_transform=None))
     renpy.exports = Namespace(save_persistent=lambda: None)
@@ -189,6 +192,21 @@ class BuildTest(unittest.TestCase):
         self.renpy.game.preferences.font_transform = "opendyslexic"
         self.run_built()
         self.assertEqual(self.renpy.game.preferences.font_transform, "opendyslexic")
+
+    def test_prediction_never_waits(self):
+        hooks = self.run_built()
+        calls = []
+        hooks._worker.wait = lambda text, timeout: calls.append(text)
+        self.renpy.display.predict.predicting = True
+        self.assertEqual(self.renpy.config.say_menu_text_filter("Hello"), "Hello")
+        self.assertEqual(calls, [])
+        hooks._cache.put_many([("Hello", "Привет")])
+        self.assertEqual(self.renpy.config.say_menu_text_filter("Hello"), "Привет")
+
+    def test_error_is_escaped(self):
+        hooks = self.run_built()
+        hooks._worker.last_error = "network: {x} [Errno 11001]"
+        self.assertEqual(hooks.status()["error"], "network: {{x} [Errno 11001]")
 
     def test_chains_previous_filter(self):
         self.renpy.config.say_menu_text_filter = lambda s: s + "!"

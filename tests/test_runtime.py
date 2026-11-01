@@ -131,6 +131,18 @@ class WorkerTest(unittest.TestCase):
             w.thread.join(5)
         self.assertFalse(w.thread.is_alive())
 
+    def test_unhealthy_worker_does_not_block(self):
+        w = self.make(fail=True)
+        w.request(["a"])
+        w.step()
+        self.assertFalse(w.healthy)
+        self.assertIsNone(w.wait("b", 5))
+        self.assertEqual(w.urgent, ["b"])
+        w.translator.fail = False
+        w.step()
+        self.assertTrue(w.healthy)
+        self.assertEqual(self.cache.get("b"), "RU:b")
+
     def test_wait_gives_up_after_failure(self):
         w = Worker(FakeTranslator(fail=True), Cache(None), sleep=lambda s: None)
         w.start()
@@ -163,6 +175,12 @@ class LookaheadTest(unittest.TestCase):
     def test_linear(self):
         start = chain(node("Say", what="0"), node("Say", what="1"), node("Scene"), node("Say", what="2"))
         self.assertEqual(collect(start, None, 10), ["1", "2"])
+
+    def test_say_subclass(self):
+        say = type(str("Say"), (Node,), {})
+        translate_say = type(str("TranslateSay"), (say,), {})
+        start = chain(node("Say", what="0"), translate_say(what="1"))
+        self.assertEqual(collect(start, None, 10), ["1"])
 
     def test_limit(self):
         start = chain(*[node("Say", what=str(i)) for i in range(10)])

@@ -70,7 +70,7 @@ screen rtr_settings():
             textbutton "Сбросить кэш переводов" action Function(_rtr.clear_cache)
             text ("Переведено строк в кэше: %d" % s["cached"]) style "rtr_hint_text"
             if s["error"]:
-                text ("Ошибка переводчика: " + s["error"]) style "rtr_error_text"
+                text ("Ошибка переводчика: " + s["error"]) style "rtr_error_text" substitute False
 
             null height 8
             textbutton "Закрыть (F8)" action Hide("rtr_settings")

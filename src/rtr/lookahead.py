@@ -9,8 +9,18 @@ def _first(block):
     return None
 
 
+KINDS = ("Say", "Menu", "If", "While", "Jump", "Call")
+
+
+def kind_of(node):
+    for cls in type(node).__mro__:
+        if cls.__name__ in KINDS:
+            return cls.__name__
+    return type(node).__name__
+
+
 def successors(node, lookup):
-    kind = type(node).__name__
+    kind = kind_of(node)
     out = [getattr(node, "next", None)]
     if kind == "Menu":
         for item in node.items:
@@ -30,7 +40,7 @@ def successors(node, lookup):
 
 
 def texts_of(node):
-    kind = type(node).__name__
+    kind = kind_of(node)
     if kind == "Say":
         if node.what:
             return [node.what]

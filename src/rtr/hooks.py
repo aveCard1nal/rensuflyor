@@ -92,6 +92,8 @@ def character_names():
     for value in list(vars(renpy.store).values()):
         if not isinstance(value, renpy.character.ADVCharacter):
             continue
+        if getattr(value, "dynamic", False):
+            continue
         name = getattr(value, "name", None)
         if isinstance(name, _STRING_TYPES) and "[" not in name:
             if isinstance(name, bytes):
@@ -173,6 +175,13 @@ def prefetch():
     _worker.request([_apply_previous(t) for t in texts])
 
 
+def _predicting():
+    try:
+        return bool(renpy.display.predict.predicting)
+    except Exception:
+        return False
+
+
 def _in_menu():
     try:
         node = renpy.game.script.lookup(renpy.game.context().current)
@@ -182,11 +191,15 @@ def _in_menu():
 
 
 def translate_line(text):
-    if not _needs_translation(text):
+    if not _needs_translation(text) or not translation_enabled():
         return text
+    if _predicting():
+        result = _cache.get(text)
+        if result is None:
+            _worker.request([text])
+            return text
+        return result
     prefetch()
-    if not translation_enabled():
-        return text
     result = _cache.get(text)
     if result is None:
         start = time.time()
@@ -281,7 +294,7 @@ def status():
         "font_fallback": settings.font_fallback,
         "font_single": font_single(),
         "cached": len(_cache),
-        "error": _worker.last_error,
+        "error": (_worker.last_error or "").replace("{", "{{"),
         "glossary": glossary_path(),
     }
 
