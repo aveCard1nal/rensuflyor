@@ -16,6 +16,8 @@ LOADER = '''init -999 python hide:
     import types
 
     def _load(name, source):
+        if sys.version_info[0] == 2:
+            name = name.encode("ascii")
         module = types.ModuleType(name)
         module.__file__ = "<%s>" % name
         if name == "rtr":
@@ -24,7 +26,7 @@ LOADER = '''init -999 python hide:
         if "." in name:
             parent, child = name.rsplit(".", 1)
             setattr(sys.modules[parent], child, module)
-        exec(compile(source, module.__file__, "exec"), module.__dict__)
+        exec(compile(source, module.__file__, "exec", 0, True), module.__dict__)
 
 '''
 
