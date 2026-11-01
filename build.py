@@ -4,10 +4,13 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "src", "rtr")
+SCREENS = os.path.join(ROOT, "src", "screens.rpy")
 OUT = os.path.join(ROOT, "dist", "zz_autotranslate_ru.rpy")
 
 USER_SETTINGS = [
+    "provider",
     "translate_names",
+    "settings_key",
 ]
 
 MODULES = [
@@ -17,7 +20,9 @@ MODULES = [
     "rtr.segment",
     "rtr.codec",
     "rtr.protect",
+    "rtr.client",
     "rtr.google",
+    "rtr.yandex",
     "rtr.translator",
     "rtr.cache",
     "rtr.worker",
@@ -77,6 +82,8 @@ def build():
     for name in MODULES:
         lines.append("    _load(%r, %r)\n" % (name, read_source(name)))
     lines.append(INSTALL)
+    with io.open(SCREENS, encoding="utf-8") as f:
+        lines.append(u"\n" + f.read())
     out_dir = os.path.dirname(OUT)
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)

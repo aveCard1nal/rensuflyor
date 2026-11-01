@@ -22,6 +22,7 @@ class Worker(object):
         self.failed = {}
         self.stopped = False
         self.thread = None
+        self.last_error = None
 
     def _recently_failed(self, text):
         when = self.failed.get(text)
@@ -85,10 +86,13 @@ class Worker(object):
             self.cache.put_many(zip(batch, results))
         except Exception as e:
             ok = False
+            self.last_error = "%s" % (e,)
             self.log("batch of %d failed: %s" % (len(batch), e))
         with self.cond:
             self.in_flight.difference_update(batch)
-            if not ok:
+            if ok:
+                self.last_error = None
+            else:
                 now = self.clock()
                 for t in batch:
                     self.failed[t] = now
@@ -96,6 +100,10 @@ class Worker(object):
         if not ok:
             self.sleep(settings.error_pause)
         return True
+
+    def reset_failures(self):
+        with self.cond:
+            self.failed = {}
 
     def run(self):
         while self.step():

@@ -1,6 +1,9 @@
 import io
+import os
 import re
+import shutil
 import sys
+import tempfile
 import types
 import unittest
 
@@ -23,34 +26,51 @@ class FakeCharacter(object):
 
 
 class Namespace(object):
-    pass
+
+    def __init__(self, **kw):
+        self.__dict__.update(kw)
+
+
+class FakePersistent(object):
+
+    def __getattr__(self, name):
+        if name.startswith("__"):
+            raise AttributeError(name)
+        return None
 
 
 class FakeTranslator(object):
 
     def __init__(self, fn):
         self.fn = fn
+        self.terms = None
 
     def translate(self, texts):
         return [self.fn(t) for t in texts]
 
+    def set_terms(self, terms):
+        self.terms = terms
 
-def make_fake_renpy():
+
+def make_fake_renpy(gamedir):
     renpy = types.ModuleType("renpy")
-    renpy.config = Namespace()
-    renpy.config.say_menu_text_filter = None
-    renpy.config.old_substitutions = True
-    renpy.config.gamedir = None
-    renpy.config.savedir = None
+    renpy.config = Namespace(
+        say_menu_text_filter=None,
+        old_substitutions=True,
+        gamedir=gamedir,
+        savedir=None,
+        keymap={},
+        underlay=[],
+    )
     renpy.display = types.ModuleType("renpy.display")
     renpy.display.log = FakeLog()
-    renpy.character = Namespace()
-    renpy.character.ADVCharacter = FakeCharacter
+    renpy.display.behavior = Namespace(Keymap=lambda **kw: ("keymap", kw))
+    renpy.character = Namespace(ADVCharacter=FakeCharacter)
     renpy.store = types.ModuleType("store")
     renpy.store.e = FakeCharacter("Eileen")
     renpy.store.n = FakeCharacter("[player]")
-    renpy.loader = Namespace()
-    renpy.loader.loadable = lambda name: False
+    renpy.store.ToggleScreen = lambda name: ("toggle", name)
+    renpy.game = Namespace(persistent=FakePersistent())
     return renpy
 
 
@@ -62,6 +82,8 @@ def python_blocks(text):
         if m:
             current = []
             blocks.append((int(m.group(1)), current))
+        elif line and not line.startswith(" "):
+            current = None
         elif current is not None:
             current.append(line[4:] if line.startswith("    ") else line)
     blocks.sort(key=lambda b: b[0])
@@ -75,7 +97,8 @@ class BuildTest(unittest.TestCase):
         for name in list(sys.modules):
             if name == "rtr" or name.startswith("rtr."):
                 del sys.modules[name]
-        self.renpy = make_fake_renpy()
+        self.dir = tempfile.mkdtemp()
+        self.renpy = make_fake_renpy(self.dir)
         sys.modules["renpy"] = self.renpy
 
     def tearDown(self):
@@ -85,28 +108,39 @@ class BuildTest(unittest.TestCase):
             del sys._rtr_worker
         sys.modules.clear()
         sys.modules.update(self.saved)
+        shutil.rmtree(self.dir)
 
     def run_built(self):
         path = build.build()
         with io.open(path, encoding="utf-8") as f:
             text = f.read()
         self.assertTrue(text.startswith("init -998 python hide:\n    import rtr.settings as s\n"))
+        self.assertIn("screen rtr_settings():", text)
         for block in python_blocks(text):
             exec(compile(block, path, "exec"), {})
         return sys.modules["rtr.hooks"]
 
-    def test_installs_filter(self):
+    def test_installs_filter_and_key(self):
         hooks = self.run_built()
         hooks._worker.translator = FakeTranslator(lambda t: "T:" + t)
         self.assertEqual(self.renpy.config.say_menu_text_filter("Hello"), "T:Hello")
         self.assertEqual(self.renpy.config.say_menu_text_filter("..."), "...")
-        self.assertTrue(any("installed" in line for line in self.renpy.display.log.lines))
+        self.assertEqual(self.renpy.config.keymap["rtr_settings"], ["K_F8"])
+        self.assertEqual(self.renpy.config.underlay, [("keymap", {"rtr_settings": ("toggle", "rtr_settings")})])
 
     def test_chains_previous_filter(self):
         self.renpy.config.say_menu_text_filter = lambda s: s + "!"
         hooks = self.run_built()
         hooks._worker.translator = FakeTranslator(lambda t: t)
         self.assertEqual(self.renpy.config.say_menu_text_filter("Hi"), "Hi!")
+
+    def test_show_original(self):
+        hooks = self.run_built()
+        hooks._worker.translator = FakeTranslator(lambda t: "T:" + t)
+        hooks.toggle_original()
+        self.assertEqual(self.renpy.config.say_menu_text_filter("Hello"), "Hello")
+        hooks.toggle_original()
+        self.assertEqual(self.renpy.config.say_menu_text_filter("Hello"), "T:Hello")
 
     def test_reinstall_stops_old_worker(self):
         self.run_built()
@@ -123,10 +157,38 @@ class BuildTest(unittest.TestCase):
         hooks = self.run_built()
         self.assertEqual(hooks.collect_terms(), set(["Eileen"]))
 
-    def test_names_translated_when_enabled(self):
+    def test_toggle_names(self):
         hooks = self.run_built()
-        sys.modules["rtr.settings"].translate_names = True
-        self.assertEqual(hooks.collect_terms(), set())
+        hooks._worker.translator = FakeTranslator(lambda t: t)
+        hooks.toggle_names()
+        self.assertTrue(self.renpy.game.persistent._rtr_translate_names)
+        self.assertEqual(hooks._worker.translator.terms, set())
+
+    def test_glossary(self):
+        hooks = self.run_built()
+        with io.open(os.path.join(self.dir, "rtr_glossary.txt"), "wb") as f:
+            f.write(u"﻿WIZ\r\nKNIGHT\n\n".encode("utf-8"))
+        self.assertEqual(hooks.collect_terms(), set(["WIZ", "KNIGHT", "Eileen", ""]))
+
+    def test_provider_switch_uses_own_cache(self):
+        hooks = self.run_built()
+        self.assertEqual(os.path.basename(hooks._cache.path), "rtr_cache_ru_google.jsonl")
+        first = hooks._worker
+        hooks.set_provider("yandex")
+        self.assertEqual(self.renpy.game.persistent._rtr_provider, "yandex")
+        self.assertEqual(os.path.basename(hooks._cache.path), "rtr_cache_ru_yandex.jsonl")
+        self.assertIsNot(hooks._worker, first)
+        self.assertEqual(hooks._worker.translator.client.ucid, self.renpy.game.persistent._rtr_ucid)
+        hooks.set_provider("bogus")
+        self.assertEqual(hooks.provider(), "yandex")
+
+    def test_clear_cache(self):
+        hooks = self.run_built()
+        hooks._cache.put_many([("a", "b")])
+        self.assertTrue(os.path.exists(hooks._cache.path))
+        hooks.clear_cache()
+        self.assertEqual(hooks.status()["cached"], 0)
+        self.assertFalse(os.path.exists(hooks._cache.path))
 
 
 if __name__ == "__main__":

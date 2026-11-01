@@ -30,3 +30,20 @@ python tools/rpa.py <out_dir> <game>/game/*.rpa
 python tools/rpyc.py <out_dir> corpus.json
 python tools/experiment.py corpus.json experiment.json
 ```
+
+## 02. Те же маркеры через Яндекс (2026-11-01)
+
+Эндпоинт мобильного приложения, без ключа: `POST https://translate.yandex.net/api/v1/tr.json/translate?srv=android&ucid=<uuid>&lang=ru&format=<html|text>`, строки в полях `text`. `lang=ru` сам определяет исходный язык. Ошибки приходят HTTP-кодом с JSON, например `413` при слишком длинном тексте.
+
+Выборка та же, 202 сегмента.
+
+| Схема | Формат | Маркеры целы | Артефакты |
+|---|---|---|---|
+| S1 | html | 202/202 | 1 слипание после `{/…}` |
+| S2 | text | 192/202 | теряет теги внутри фразы |
+| S3 | html + `translate="no"` | 202/202 | 18 слипшихся `[name]` |
+
+Выводы:
+
+- У Яндекса основной режим `html`, запасной `text`. У Google наоборот. Порядок задаётся атрибутом `formats` клиента.
+- По качеству текста Яндекс и Google сопоставимы, ошибки у них разные.

@@ -3,6 +3,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from rtr.segment import split
 from rtr.codec import encode, decode, CodecError
 from rtr.tags import INTERP
+from rtr.google import GoogleClient
+from rtr.yandex import YandexClient
 
 CORPUS, OUT = sys.argv[1], sys.argv[2]
 lines = json.load(open(CORPUS, encoding="utf-8"))
@@ -38,14 +40,12 @@ def s3_back(html, enc):
         html = re.sub(r'<span[^>]*translate[^>]*id\s*=\s*"?%d"?[^>]*>.*?</span>' % n, '<x id="%d"></x>' % n, html)
     return html
 
+CLIENTS = {"google": GoogleClient, "yandex": YandexClient}
+client = CLIENTS[sys.argv[3] if len(sys.argv) > 3 else "google"]()
+
+
 def google(qs, fmt):
-    url = "https://translate.googleapis.com/translate_a/t?client=gtx&sl=en&tl=ru&format=" + fmt
-    data = urllib.parse.urlencode([("q", q) for q in qs]).encode()
-    req = urllib.request.Request(url, data=data, headers={"User-Agent": "Mozilla/5.0"})
-    res = json.loads(urllib.request.urlopen(req, timeout=20).read().decode("utf-8"))
-    if isinstance(res, str):
-        res = [res]
-    return [r if isinstance(r, str) else r[0] for r in res]
+    return client.translate(qs, fmt)
 
 items = []
 for g, ws in groups.items():

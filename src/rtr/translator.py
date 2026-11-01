@@ -19,6 +19,10 @@ def tidy_html(html):
     return html
 
 
+def _same(html):
+    return html
+
+
 def _has_letters(s):
     return any(c.isalpha() for c in s)
 
@@ -96,9 +100,10 @@ class Translator(object):
                     line_jobs.append(Job(seg, encode(seg)))
             lines.append((line, line_jobs))
             jobs.extend(line_jobs)
-        failed = self._try(jobs, "text", lambda h: h)
-        if failed:
-            failed = self._try(failed, "html", tidy_html)
+        failed = jobs
+        for fmt in getattr(self.client, "formats", ("text", "html")):
+            if failed:
+                failed = self._try(failed, fmt, tidy_html if fmt == "html" else _same)
         if failed:
             self._pieces(failed)
         out = []

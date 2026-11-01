@@ -37,6 +37,12 @@ class Cache(object):
     def __len__(self):
         return len(self.entries)
 
+    def clear(self):
+        with self.lock:
+            self.entries = {}
+            if self.path and os.path.exists(self.path):
+                os.remove(self.path)
+
     def put_many(self, pairs):
         pairs = [(s, d) for s, d in pairs if self.entries.get(s) != d]
         if not pairs:
