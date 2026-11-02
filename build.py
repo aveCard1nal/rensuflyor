@@ -80,8 +80,22 @@ def settings_block():
     return "".join(lines) + "\n"
 
 
+def version():
+    scope = {}
+    exec(compile(read_source("rensuflyor"), "version", "exec"), scope)
+    return scope["VERSION"]
+
+
+def header():
+    return (
+        u"# RenSuflyor %s — Ren'Py real-time translator (Google / Yandex → RU)\n"
+        u"# Copyright (c) 2026 Daniil Sher · MIT License · https://github.com/aveCard1nal/rensuflyor\n"
+        u"\n"
+    ) % version()
+
+
 def build():
-    lines = [settings_block(), LOADER]
+    lines = [header(), settings_block(), LOADER]
     for name in MODULES:
         lines.append("    _load(%r, %r)\n" % (name, read_source(name)))
     lines.append(INSTALL)

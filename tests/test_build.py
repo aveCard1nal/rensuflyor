@@ -152,7 +152,8 @@ class BuildTest(unittest.TestCase):
         path = build.build()
         with io.open(path, encoding="utf-8") as f:
             text = f.read()
-        self.assertTrue(text.startswith("init -998 python hide:\n    import rensuflyor.settings as s\n"))
+        self.assertTrue(text.startswith("# RenSuflyor " + build.version() + " "))
+        self.assertIn("\ninit -998 python hide:\n    import rensuflyor.settings as s\n", text)
         self.assertIn("screen rensuflyor_settings():", text)
         for block in python_blocks(text):
             exec(compile(block, path, "exec"), {})
