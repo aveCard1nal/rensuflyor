@@ -24,6 +24,13 @@ class FakeCharacter(object):
     def __init__(self, name, dynamic=False):
         self.name = name
         self.dynamic = dynamic
+        self.said = []
+
+    def __call__(self, what, interact=True, **kwargs):
+        if kwargs:
+            return FakeCharacter(self.name)(what, interact=interact)
+        self.said.append(what)
+        return what
 
 
 class Namespace(object):
@@ -105,7 +112,8 @@ def make_fake_renpy(gamedir):
     renpy.store.n = FakeCharacter("[player]")
     renpy.store.mc = FakeCharacter("name", dynamic=True)
     renpy.store.ToggleScreen = lambda name: ("toggle", name)
-    renpy.game = Namespace(persistent=FakePersistent(), preferences=Namespace(font_transform=None, language=None))
+    current = Namespace(current="start")
+    renpy.game = Namespace(persistent=FakePersistent(), preferences=Namespace(font_transform=None, language=None), context=lambda: current)
     renpy.exports = Namespace(save_persistent=lambda: None)
     renpy.text = Namespace(font=Namespace(FontGroup=FakeFontGroup))
     renpy.loader = Namespace(load=fake_load)
@@ -140,6 +148,9 @@ class BuildTest(unittest.TestCase):
         sys.modules["renpy"] = self.renpy
 
     def tearDown(self):
+        original = getattr(FakeCharacter.__call__, "_rensuflyor_original", None)
+        if original is not None:
+            FakeCharacter.__call__ = original
         worker = getattr(sys, "_rensuflyor_worker", None)
         if worker is not None:
             worker.stop()
@@ -301,6 +312,32 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(hooks._worker.translator.client.ucid, self.renpy.game.persistent._rensuflyor_ucid)
         hooks.set_provider("bogus")
         self.assertEqual(hooks.provider(), "yandex")
+
+    def test_python_say_is_translated(self):
+        hooks = self.run_built()
+        hooks._worker.translator = FakeTranslator(lambda t: "T:" + t)
+        self.renpy.game.context().current = "python_node"
+        self.assertEqual(self.renpy.store.e("Hello"), "T:Hello")
+        self.assertEqual(self.renpy.store.e("Bye", what_color="#fff"), "T:Bye")
+
+    def test_say_statement_is_not_translated_twice(self):
+        hooks = self.run_built()
+        hooks._worker.translator = FakeTranslator(lambda t: "T:" + t)
+        self.renpy.game.context().current = "say_node"
+        out = self.renpy.config.say_menu_text_filter("Hello")
+        self.assertEqual(self.renpy.store.e(out), "T:Hello")
+        self.renpy.game.context().current = "next_python_node"
+        self.assertEqual(self.renpy.store.e("Hi"), "T:Hi")
+
+    def test_character_hook_installed_once(self):
+        self.run_built()
+        first = self.renpy.character.ADVCharacter.__call__
+        for name in list(sys.modules):
+            if name == "rensuflyor" or name.startswith("rensuflyor."):
+                del sys.modules[name]
+        self.run_built()
+        second = self.renpy.character.ADVCharacter.__call__
+        self.assertIs(first._rensuflyor_original, second._rensuflyor_original)
 
     def test_clear_cache(self):
         hooks = self.run_built()

@@ -36,6 +36,8 @@ _previous_filter = None
 _worker = None
 _cache = None
 _last_node = None
+_said_node = None
+_call_depth = 0
 _percent = False
 
 
@@ -237,7 +239,43 @@ def translate_line(text):
 
 
 def _filter(text):
+    global _said_node
+    if not _predicting():
+        try:
+            _said_node = renpy.game.context().current
+        except Exception:
+            _said_node = None
     return translate_line(_apply_previous(text))
+
+
+def _from_python():
+    try:
+        return renpy.game.context().current != _said_node
+    except Exception:
+        return False
+
+
+def _wrap_call(original):
+    def call(self, what, *args, **kwargs):
+        global _call_depth
+        if _call_depth == 0 and isinstance(what, "".__class__) and _from_python():
+            try:
+                what = translate_line(_apply_previous(what))
+            except Exception as e:
+                log("python say failed: %s" % describe(e))
+        _call_depth += 1
+        try:
+            return original(self, what, *args, **kwargs)
+        finally:
+            _call_depth -= 1
+    call._rensuflyor_original = original
+    return call
+
+
+def install_character_call():
+    cls = renpy.character.ADVCharacter
+    original = getattr(cls.__call__, "_rensuflyor_original", cls.__call__)
+    cls.__call__ = _wrap_call(original)
 
 
 def start():
@@ -395,7 +433,7 @@ def install():
     except Exception as e:
         log("install failed, translation disabled: %s" % describe(e))
         return
-    for step in (install_font_fallback, install_key):
+    for step in (install_character_call, install_font_fallback, install_key):
         try:
             step()
         except Exception as e:
