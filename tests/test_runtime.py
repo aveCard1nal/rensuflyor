@@ -53,7 +53,7 @@ class CacheTest(unittest.TestCase):
 
     def test_truncated_tail_is_not_glued(self):
         with io.open(self.path, "wb") as f:
-            f.write(b"[\"a\", \"1\"]\n[\"b\", \"\u0420")
+            f.write(b"[\"a\", \"1\"]\n[\"b\", \"\\u0420")
         c = Cache(self.path)
         self.assertEqual(c.load(), 1)
         c.put_many([("c", "\u0442\u0440\u0438")])
