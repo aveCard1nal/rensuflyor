@@ -1,4 +1,8 @@
-import os, pickle, sys, zlib
+import io, os, pickle, sys, zlib
+
+class SafeUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        raise pickle.UnpicklingError("forbidden global %s.%s" % (module, name))
 
 def index(path):
     with open(path, "rb") as f:
@@ -6,7 +10,7 @@ def index(path):
         offset = int(header[1], 16)
         key = int(header[2], 16)
         f.seek(offset)
-        data = pickle.loads(zlib.decompress(f.read()), encoding="bytes")
+        data = SafeUnpickler(io.BytesIO(zlib.decompress(f.read())), encoding="bytes").load()
     out = {}
     for name, parts in data.items():
         if isinstance(name, bytes):
