@@ -41,3 +41,16 @@ python -m unittest discover -s tests -t .
 В комплекте игр на Ren'Py 7 урезанная стандартная библиотека без `unittest`, поэтому совместимость с Python 2.7 проверяется прогоном внутри игры.
 
 Проверка на полном корпусе строк игры запускается, если задана переменная `RENSUFLYOR_CORPUS` (см. `docs/experiments.md`).
+
+## Похожие проекты
+
+- [Translator3000](https://github.com/NyashniyVladya) — автоматический переводчик игр на Ren'Py.
+- [renpy-translator](https://github.com/anonymousException/renpy-translator), [RenLocalizer](https://github.com/Lord0fTurk/RenLocalizer) — генерируют файлы перевода `tl/` заранее.
+
+RenSuflyor — независимая реализация, код из этих проектов не заимствован.
+
+RenSuflyor не является официальным продуктом Ren'Py и не связан с его авторами.
+
+## Лицензия
+
+[MIT](LICENSE).
