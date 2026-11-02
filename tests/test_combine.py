@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 
 import unittest
 
-from rtr.combine import ORIGINAL_CLOSE, ORIGINAL_OPEN, combine, strip_control
+from rensuflyor.combine import ORIGINAL_CLOSE, ORIGINAL_OPEN, combine, strip_control
 
 
 def orig(text):

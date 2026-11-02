@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 import struct
 import unittest
 
-from rtr.fontcheck import has_chars, has_cyrillic
+from rensuflyor.fontcheck import has_chars, has_cyrillic
 
 
 def format4(segments):

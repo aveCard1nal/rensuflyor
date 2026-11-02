@@ -1,10 +1,10 @@
 import io, json, os, random, re, sys, time, urllib.parse, urllib.request
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
-from rtr.segment import split
-from rtr.codec import encode, decode, CodecError
-from rtr.tags import INTERP
-from rtr.google import GoogleClient
-from rtr.yandex import YandexClient
+from rensuflyor.segment import split
+from rensuflyor.codec import encode, decode, CodecError
+from rensuflyor.tags import INTERP
+from rensuflyor.google import GoogleClient
+from rensuflyor.yandex import YandexClient
 
 CORPUS, OUT = sys.argv[1], sys.argv[2]
 lines = json.load(open(CORPUS, encoding="utf-8"))

@@ -11,7 +11,7 @@ except ImportError:
     from urllib import urlencode
     from urllib2 import HTTPError, Request, urlopen
 
-from rtr import settings
+from rensuflyor import settings
 
 USER_AGENT = "Mozilla/5.0"
 RETRY_STATUSES = (429, 500, 502, 503, 504)

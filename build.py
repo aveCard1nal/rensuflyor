@@ -3,9 +3,9 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-SRC = os.path.join(ROOT, "src", "rtr")
+SRC = os.path.join(ROOT, "src", "rensuflyor")
 SCREENS = os.path.join(ROOT, "src", "screens.rpy")
-OUT = os.path.join(ROOT, "dist", "zz_autotranslate_ru.rpy")
+OUT = os.path.join(ROOT, "dist", "zz_rensuflyor.rpy")
 
 USER_SETTINGS = [
     "provider",
@@ -15,22 +15,22 @@ USER_SETTINGS = [
 ]
 
 MODULES = [
-    "rtr",
-    "rtr.settings",
-    "rtr.tags",
-    "rtr.segment",
-    "rtr.codec",
-    "rtr.protect",
-    "rtr.fontcheck",
-    "rtr.client",
-    "rtr.google",
-    "rtr.yandex",
-    "rtr.translator",
-    "rtr.combine",
-    "rtr.cache",
-    "rtr.worker",
-    "rtr.lookahead",
-    "rtr.hooks",
+    "rensuflyor",
+    "rensuflyor.settings",
+    "rensuflyor.tags",
+    "rensuflyor.segment",
+    "rensuflyor.codec",
+    "rensuflyor.protect",
+    "rensuflyor.fontcheck",
+    "rensuflyor.client",
+    "rensuflyor.google",
+    "rensuflyor.yandex",
+    "rensuflyor.translator",
+    "rensuflyor.combine",
+    "rensuflyor.cache",
+    "rensuflyor.worker",
+    "rensuflyor.lookahead",
+    "rensuflyor.hooks",
 ]
 
 LOADER = '''init -999 python hide:
@@ -42,7 +42,7 @@ LOADER = '''init -999 python hide:
             name = name.encode("ascii")
         module = types.ModuleType(name)
         module.__file__ = "<%s>" % name
-        if name == "rtr":
+        if name == "rensuflyor":
             module.__path__ = []
         sys.modules[name] = module
         if "." in name:
@@ -54,8 +54,8 @@ LOADER = '''init -999 python hide:
 
 INSTALL = '''
 init 999 python hide:
-    import rtr.hooks
-    rtr.hooks.install()
+    import rensuflyor.hooks
+    rensuflyor.hooks.install()
 '''
 
 
@@ -73,8 +73,8 @@ def read_source(name):
 
 def settings_block():
     defaults = {}
-    exec(compile(read_source("rtr.settings"), "settings", "exec"), defaults)
-    lines = ["init -998 python hide:\n", "    import rtr.settings as s\n"]
+    exec(compile(read_source("rensuflyor.settings"), "settings", "exec"), defaults)
+    lines = ["init -998 python hide:\n", "    import rensuflyor.settings as s\n"]
     for name in USER_SETTINGS:
         lines.append("    s.%s = %r\n" % (name, defaults[name]))
     return "".join(lines) + "\n"

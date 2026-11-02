@@ -2,10 +2,10 @@ from __future__ import absolute_import, unicode_literals
 
 import re
 
-from rtr.codec import CodecError, decode, encode
-from rtr.protect import compile_terms, protect
-from rtr.segment import split
-from rtr.tags import TEXT, Token, escape_text, tokenize
+from rensuflyor.codec import CodecError, decode, encode
+from rensuflyor.protect import compile_terms, protect
+from rensuflyor.segment import split
+from rensuflyor.tags import TEXT, Token, escape_text, tokenize
 
 _SPACE_BEFORE_PUNCT = re.compile(r"(</span>|</x>|<x[^>]*/>)\s+(?=[.,!?;:…)])")
 _SPACE_AFTER_OPEN_PAREN = re.compile(r"\(\s+(?=<)")

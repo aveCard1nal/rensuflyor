@@ -3,7 +3,7 @@ from __future__ import absolute_import, unicode_literals
 import re
 import sys
 
-from rtr.tags import TAG, TEXT, escape_text
+from rensuflyor.tags import TAG, TEXT, escape_text
 
 if sys.version_info[0] == 2:
     def _chr(code):

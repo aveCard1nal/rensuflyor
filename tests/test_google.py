@@ -3,8 +3,8 @@ from __future__ import unicode_literals
 import json
 import unittest
 
-from rtr import settings
-from rtr.google import GoogleClient, TranslateError, parse_response
+from rensuflyor import settings
+from rensuflyor.google import GoogleClient, TranslateError, parse_response
 
 try:
     from urllib.parse import parse_qsl

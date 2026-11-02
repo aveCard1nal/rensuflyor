@@ -8,17 +8,17 @@ import time
 
 import renpy
 
-from rtr import VERSION, settings
-from rtr.cache import Cache
-from rtr.client import describe
-from rtr.combine import combine
-from rtr.fontcheck import has_cyrillic
-from rtr.google import GoogleClient
-from rtr.lookahead import collect, kind_of, texts_of
-from rtr.protect import compile_terms
-from rtr.translator import Translator
-from rtr.worker import Worker
-from rtr.yandex import YandexClient, new_ucid
+from rensuflyor import VERSION, settings
+from rensuflyor.cache import Cache
+from rensuflyor.client import describe
+from rensuflyor.combine import combine
+from rensuflyor.fontcheck import has_cyrillic
+from rensuflyor.google import GoogleClient
+from rensuflyor.lookahead import collect, kind_of, texts_of
+from rensuflyor.protect import compile_terms
+from rensuflyor.translator import Translator
+from rensuflyor.worker import Worker
+from rensuflyor.yandex import YandexClient, new_ucid
 
 _STRING_TYPES = ("".__class__, b"".__class__)
 
@@ -27,7 +27,7 @@ PROVIDERS = {
     "yandex": ("Яндекс", YandexClient),
 }
 
-FONT_TRANSFORM = "rtr_cyrillic"
+FONT_TRANSFORM = "rensuflyor_cyrillic"
 CYRILLIC_RANGES = ((0x0400, 0x052F), (0x2116, 0x2116))
 
 _font_checks = {}
@@ -40,7 +40,7 @@ _percent = False
 
 
 def log(message):
-    renpy.display.log.write("rtr: %s", message)
+    renpy.display.log.write("rensuflyor: %s", message)
 
 
 def _persistent():
@@ -48,12 +48,12 @@ def _persistent():
 
 
 def _get(name, default):
-    value = getattr(_persistent(), "_rtr_" + name, None)
+    value = getattr(_persistent(), "_rensuflyor_" + name, None)
     return default if value is None else value
 
 
 def _set(name, value):
-    setattr(_persistent(), "_rtr_" + name, value)
+    setattr(_persistent(), "_rensuflyor_" + name, value)
     try:
         renpy.exports.save_persistent()
     except Exception as e:
@@ -242,7 +242,7 @@ def _filter(text):
 
 def start():
     global _worker, _cache, _last_node
-    old = getattr(sys, "_rtr_worker", None)
+    old = getattr(sys, "_rensuflyor_worker", None)
     if old is not None:
         old.stop()
     name = provider()
@@ -251,7 +251,7 @@ def start():
     loaded = _cache.load()
     _worker = Worker(Translator(make_client(name), terms, _percent), _cache, log)
     _worker.start()
-    sys._rtr_worker = _worker
+    sys._rensuflyor_worker = _worker
     _last_node = None
     log("%s using %s, %d protected terms, cache %s (%d entries)" % (VERSION, name, len(terms), _cache.path, loaded))
 
@@ -380,7 +380,8 @@ def install_font_fallback():
         return
     renpy.config.font_transforms[FONT_TRANSFORM] = cyrillic_font
     prefs = renpy.game.preferences
-    if getattr(prefs, "font_transform", None) in (None, FONT_TRANSFORM):
+    current = getattr(prefs, "font_transform", None)
+    if current is None or current == FONT_TRANSFORM or current not in renpy.config.font_transforms:
         prefs.font_transform = FONT_TRANSFORM
 
 
@@ -403,5 +404,5 @@ def install():
 
 
 def install_key():
-    renpy.config.keymap["rtr_settings"] = [settings.settings_key]
-    renpy.config.underlay.append(renpy.display.behavior.Keymap(rtr_settings=renpy.store.ToggleScreen("rtr_settings")))
+    renpy.config.keymap["rensuflyor_settings"] = [settings.settings_key]
+    renpy.config.underlay.append(renpy.display.behavior.Keymap(rensuflyor_settings=renpy.store.ToggleScreen("rensuflyor_settings")))

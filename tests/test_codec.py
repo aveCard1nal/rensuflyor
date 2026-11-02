@@ -5,8 +5,8 @@ import json
 import os
 import unittest
 
-from rtr.codec import CodecError, decode, encode, html_unescape
-from rtr.segment import split
+from rensuflyor.codec import CodecError, decode, encode, html_unescape
+from rensuflyor.segment import split
 
 
 def roundtrip(text, percent=False, translate=None):
@@ -148,9 +148,9 @@ class RoundtripTest(unittest.TestCase):
                 self.assertEqual(roundtrip(case, percent), case)
 
     def test_corpus(self):
-        path = os.environ.get("RTR_CORPUS")
+        path = os.environ.get("RENSUFLYOR_CORPUS")
         if not path:
-            self.skipTest("RTR_CORPUS not set")
+            self.skipTest("RENSUFLYOR_CORPUS not set")
         with io.open(path, encoding="utf-8") as f:
             lines = json.load(f)
         bad = []

@@ -3,8 +3,8 @@ from __future__ import unicode_literals
 import json
 import unittest
 
-from rtr.client import TranslateError
-from rtr.yandex import YandexClient, parse_response
+from rensuflyor.client import TranslateError
+from rensuflyor.yandex import YandexClient, parse_response
 
 try:
     from urllib.parse import parse_qsl, urlparse

@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 
 import unittest
 
-from rtr.tags import BREAK, INTERP, TAG, TEXT, escape_text, tokenize
+from rensuflyor.tags import BREAK, INTERP, TAG, TEXT, escape_text, tokenize
 
 
 def kinds(tokens):

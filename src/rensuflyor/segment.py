@@ -1,6 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 
-from rtr.tags import TEXT, Token, tokenize
+from rensuflyor.tags import TEXT, Token, tokenize
 
 
 class Segment(object):

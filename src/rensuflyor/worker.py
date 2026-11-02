@@ -3,8 +3,8 @@ from __future__ import absolute_import, unicode_literals
 import threading
 import time
 
-from rtr import settings
-from rtr.client import describe
+from rensuflyor import settings
+from rensuflyor.client import describe
 
 
 class Worker(object):
@@ -125,7 +125,7 @@ class Worker(object):
             pass
 
     def start(self):
-        self.thread = threading.Thread(target=self.run, name="rtr-worker")
+        self.thread = threading.Thread(target=self.run, name="rensuflyor-worker")
         self.thread.daemon = True
         self.thread.start()
 

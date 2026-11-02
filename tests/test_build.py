@@ -133,17 +133,17 @@ class BuildTest(unittest.TestCase):
     def setUp(self):
         self.saved = dict(sys.modules)
         for name in list(sys.modules):
-            if name == "rtr" or name.startswith("rtr."):
+            if name == "rensuflyor" or name.startswith("rensuflyor."):
                 del sys.modules[name]
         self.dir = tempfile.mkdtemp()
         self.renpy = make_fake_renpy(self.dir)
         sys.modules["renpy"] = self.renpy
 
     def tearDown(self):
-        worker = getattr(sys, "_rtr_worker", None)
+        worker = getattr(sys, "_rensuflyor_worker", None)
         if worker is not None:
             worker.stop()
-            del sys._rtr_worker
+            del sys._rensuflyor_worker
         sys.modules.clear()
         sys.modules.update(self.saved)
         shutil.rmtree(self.dir)
@@ -152,24 +152,24 @@ class BuildTest(unittest.TestCase):
         path = build.build()
         with io.open(path, encoding="utf-8") as f:
             text = f.read()
-        self.assertTrue(text.startswith("init -998 python hide:\n    import rtr.settings as s\n"))
-        self.assertIn("screen rtr_settings():", text)
+        self.assertTrue(text.startswith("init -998 python hide:\n    import rensuflyor.settings as s\n"))
+        self.assertIn("screen rensuflyor_settings():", text)
         for block in python_blocks(text):
             exec(compile(block, path, "exec"), {})
-        return sys.modules["rtr.hooks"]
+        return sys.modules["rensuflyor.hooks"]
 
     def test_installs_filter_and_key(self):
         hooks = self.run_built()
         hooks._worker.translator = FakeTranslator(lambda t: "T:" + t)
         self.assertEqual(self.renpy.config.say_menu_text_filter("Hello"), "T:Hello")
         self.assertEqual(self.renpy.config.say_menu_text_filter("..."), "...")
-        self.assertEqual(self.renpy.config.keymap["rtr_settings"], ["K_F8"])
-        self.assertEqual(self.renpy.config.underlay, [("keymap", {"rtr_settings": ("toggle", "rtr_settings")})])
+        self.assertEqual(self.renpy.config.keymap["rensuflyor_settings"], ["K_F8"])
+        self.assertEqual(self.renpy.config.underlay, [("keymap", {"rensuflyor_settings": ("toggle", "rensuflyor_settings")})])
 
     def test_font_fallback(self):
         hooks = self.run_built()
-        self.assertEqual(self.renpy.game.preferences.font_transform, "rtr_cyrillic")
-        transform = self.renpy.config.font_transforms["rtr_cyrillic"]
+        self.assertEqual(self.renpy.game.preferences.font_transform, "rensuflyor_cyrillic")
+        transform = self.renpy.config.font_transforms["rensuflyor_cyrillic"]
         self.assertEqual(transform("cyr.ttf"), "cyr.ttf")
         group = transform("latin.ttf")
         self.assertEqual(group.added[0], ("DejaVuSans.ttf", 0x0400, 0x052F))
@@ -179,7 +179,7 @@ class BuildTest(unittest.TestCase):
 
     def test_font_single_mode(self):
         hooks = self.run_built()
-        transform = self.renpy.config.font_transforms["rtr_cyrillic"]
+        transform = self.renpy.config.font_transforms["rensuflyor_cyrillic"]
         self.assertIsInstance(transform("latin.ttf"), FakeFontGroup)
         hooks.toggle_font_single()
         self.assertTrue(hooks.status()["font_single"])
@@ -189,9 +189,15 @@ class BuildTest(unittest.TestCase):
         self.assertIsInstance(transform("latin.ttf"), FakeFontGroup)
 
     def test_font_fallback_keeps_user_choice(self):
+        self.renpy.config.font_transforms["opendyslexic"] = lambda f: f
         self.renpy.game.preferences.font_transform = "opendyslexic"
         self.run_built()
         self.assertEqual(self.renpy.game.preferences.font_transform, "opendyslexic")
+
+    def test_font_fallback_replaces_missing_transform(self):
+        self.renpy.game.preferences.font_transform = "gone"
+        self.run_built()
+        self.assertEqual(self.renpy.game.preferences.font_transform, "rensuflyor_cyrillic")
 
     def test_prediction_never_waits(self):
         hooks = self.run_built()
@@ -214,7 +220,7 @@ class BuildTest(unittest.TestCase):
     def test_glossary_change_invalidates_cache(self):
         hooks = self.run_built()
         hooks._cache.put_many([("Hi WIZ.", "old"), ("Bye.", "\u041f\u043e\u043a\u0430.")])
-        with io.open(os.path.join(self.dir, "rtr_glossary.txt"), "wb") as f:
+        with io.open(os.path.join(self.dir, "rensuflyor_glossary.txt"), "wb") as f:
             f.write(b"WIZ\n")
         hooks.reload_terms()
         self.assertIsNone(hooks._cache.get("Hi WIZ."))
@@ -257,14 +263,14 @@ class BuildTest(unittest.TestCase):
 
     def test_reinstall_stops_old_worker(self):
         self.run_built()
-        first = sys._rtr_worker
+        first = sys._rensuflyor_worker
         for name in list(sys.modules):
-            if name == "rtr" or name.startswith("rtr."):
+            if name == "rensuflyor" or name.startswith("rensuflyor."):
                 del sys.modules[name]
         self.run_built()
         first.thread.join(5)
         self.assertFalse(first.thread.is_alive())
-        self.assertIsNot(sys._rtr_worker, first)
+        self.assertIsNot(sys._rensuflyor_worker, first)
 
     def test_names_protected_by_default(self):
         hooks = self.run_built()
@@ -274,24 +280,24 @@ class BuildTest(unittest.TestCase):
         hooks = self.run_built()
         hooks._worker.translator = FakeTranslator(lambda t: t)
         hooks.toggle_names()
-        self.assertTrue(self.renpy.game.persistent._rtr_translate_names)
+        self.assertTrue(self.renpy.game.persistent._rensuflyor_translate_names)
         self.assertEqual(hooks._worker.translator.terms, set())
 
     def test_glossary(self):
         hooks = self.run_built()
-        with io.open(os.path.join(self.dir, "rtr_glossary.txt"), "wb") as f:
+        with io.open(os.path.join(self.dir, "rensuflyor_glossary.txt"), "wb") as f:
             f.write(u"﻿WIZ\r\nKNIGHT\n\n".encode("utf-8"))
         self.assertEqual(hooks.collect_terms(), set(["WIZ", "KNIGHT", "Eileen", ""]))
 
     def test_provider_switch_uses_own_cache(self):
         hooks = self.run_built()
-        self.assertEqual(os.path.basename(hooks._cache.path), "rtr_cache_ru_google.jsonl")
+        self.assertEqual(os.path.basename(hooks._cache.path), "rensuflyor_cache_ru_google.jsonl")
         first = hooks._worker
         hooks.set_provider("yandex")
-        self.assertEqual(self.renpy.game.persistent._rtr_provider, "yandex")
-        self.assertEqual(os.path.basename(hooks._cache.path), "rtr_cache_ru_yandex.jsonl")
+        self.assertEqual(self.renpy.game.persistent._rensuflyor_provider, "yandex")
+        self.assertEqual(os.path.basename(hooks._cache.path), "rensuflyor_cache_ru_yandex.jsonl")
         self.assertIsNot(hooks._worker, first)
-        self.assertEqual(hooks._worker.translator.client.ucid, self.renpy.game.persistent._rtr_ucid)
+        self.assertEqual(hooks._worker.translator.client.ucid, self.renpy.game.persistent._rensuflyor_ucid)
         hooks.set_provider("bogus")
         self.assertEqual(hooks.provider(), "yandex")
 

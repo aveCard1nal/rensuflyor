@@ -2,7 +2,7 @@ from __future__ import absolute_import, unicode_literals
 
 import re
 
-from rtr.tags import TEXT, Token, escape_text
+from rensuflyor.tags import TEXT, Token, escape_text
 
 TERM = "term"
 

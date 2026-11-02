@@ -3,9 +3,9 @@ from __future__ import unicode_literals
 import re
 import unittest
 
-from rtr.protect import clean_terms, compile_terms, protect
-from rtr.segment import split
-from rtr.translator import Translator, tidy_html
+from rensuflyor.protect import clean_terms, compile_terms, protect
+from rensuflyor.segment import split
+from rensuflyor.translator import Translator, tidy_html
 
 MARKUP = re.compile(r"(<[^>]*>)")
 

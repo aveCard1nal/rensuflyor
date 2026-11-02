@@ -2,8 +2,8 @@ from __future__ import absolute_import, unicode_literals
 
 import json
 
-from rtr import settings
-from rtr.client import Client, TranslateError, form, urlencode, utf8
+from rensuflyor import settings
+from rensuflyor.client import Client, TranslateError, form, urlencode, utf8
 
 URL = "https://translate.googleapis.com/translate_a/t"
 

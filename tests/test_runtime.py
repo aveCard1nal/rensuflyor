@@ -7,10 +7,10 @@ import tempfile
 import threading
 import unittest
 
-from rtr import settings
-from rtr.cache import Cache
-from rtr.lookahead import collect
-from rtr.worker import Worker
+from rensuflyor import settings
+from rensuflyor.cache import Cache
+from rensuflyor.lookahead import collect
+from rensuflyor.worker import Worker
 
 
 class CacheTest(unittest.TestCase):

@@ -1,6 +1,6 @@
 from __future__ import absolute_import, unicode_literals
 
-from rtr.tags import TAG, tokenize
+from rensuflyor.tags import TAG, tokenize
 
 ORIGINAL_OPEN = "{size=-6}{alpha=*0.75}"
 ORIGINAL_CLOSE = "{/alpha}{/size}"
